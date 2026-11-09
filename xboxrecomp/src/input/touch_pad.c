@@ -8,17 +8,20 @@
  * xbox_InputGetState adds the pad's state on top of port 0's
  * (xbox_touchpad_state).
  *
+ *        LT  LS                                    RT
  *   stick + d-pad    BACK START    A B X Y  WHITE   (as on the original
  *                                                BLACK  Xbox controller)
  *   bottom left, bottom middle, bottom right: WHITE and BLACK (the
  *   Switch's L / R) two small pills, white and black, tilted along the
- *   diamond's Y-B edge just outside it
+ *   diamond's Y-B edge just outside it; the triggers LT and RT above the
+ *   stick and above the buttons, under the thumbs as on the controller,
+ *   and LS beside LT: the stick's click (MC3's special moves)
  *
  * The stick and the d-pad are one control: a finger landing inside the ring
  * is the stick, one landing on the ring the d-pad -- the arrow under it, or
  * two at a diagonal, following the finger round. The stick's up and down are
  * also gas and brake (right / left trigger, as far as pushed), as the
- * keyboard's arrows are; while driving (xbox_keyboard_driving, the title
+ * keyboard's arrows are, besides LT and RT; while driving (xbox_keyboard_driving, the title
  * says) they are the pedals only, so a race camera on the stick stays put.
  * A finger may slide from one button to another.
  *
@@ -27,25 +30,37 @@
  *
  * Shown while there is a touch screen, no controller on port 0, and the
  * last input was not the keyboard; a touch brings it back.
+ * A tall screen split by screen_split.c (portrait: the game above) has the
+ * pad laid out in the lower area, sized to its width.
+ *
  * RECOMP_TOUCH_PAD=0 off, =1 always (with a mouse acting as a finger: the
- * desktop, to try it); RECOMP_TOUCH_PAD_ALPHA (0.1-1, default 0.55) and
- * RECOMP_TOUCH_PAD_SCALE (0.6-1.6, default 1) for opacity and size.
+ * desktop, to try it); RECOMP_TOUCH_PAD_SWAP_AB=1 has the button lettered A
+ * press the Xbox's B and the other way round (the default on Android, as
+ * asked for there; elsewhere the letters are the Xbox's);
+ * RECOMP_TOUCH_PAD_STICK_PEDALS=0 leaves the stick's up and down to the
+ * stick alone (gas and brake on RT and LT only); RECOMP_TOUCH_PAD_ALPHA (0.1-1, default 0.55) and
+ * RECOMP_TOUCH_PAD_SCALE (0.6-1.6, default 1) for opacity and size. A
+ * host's settings menu changes them at run time (xbox_touchpad_configure).
  */
 #if (!defined(_WIN32) || defined(XBOXRECOMP_SDL_HOST)) && !defined(__SWITCH__)
 
 #include <SDL.h>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "touch_pad.h"
+#include "screen_split.h"
 #include "xinput_xbox.h"
 
 extern int (*xbox_keyboard_driving)(void);      /* sdl_keyboard.c */
 
 enum { C_NONE = -1, C_STICK, C_DPAD, C_A, C_B, C_X, C_Y, C_WHITE, C_BLACK,
-       C_BACK, C_START, C_COUNT };
+       C_BACK, C_START, C_LT, C_RT, C_LS, C_COUNT };
 
 enum { D_UP = 1, D_DOWN = 2, D_LEFT = 4, D_RIGHT = 8 };
 
@@ -69,6 +84,11 @@ static int s_down[C_COUNT], s_dirs;     /* s_dirs: d-pad arrows held (D_*) */
 static volatile int s_shown;            /* 1: visible */
 static int s_mode = -2;                 /* RECOMP_TOUCH_PAD: -1 auto, 0, 1 */
 static float s_alpha = 0.55f, s_scale = 1.0f;
+static int s_swap_ab;                   /* RECOMP_TOUCH_PAD_SWAP_AB */
+static int s_stick_pedals = 1;          /* RECOMP_TOUCH_PAD_STICK_PEDALS */
+static volatile int s_relayout;         /* settings changed: lay out again */
+static int s_split = -1;                /* the layout's: 1 in the lower area */
+static int s_gen = -1;                  /* xbox_screen_layout_gen at the layout */
 static int s_keyboard_last, s_controller, s_touched;
 static int s_dirty = 1;
 
@@ -82,13 +102,20 @@ static void settings(void)
     if (s_mode != -2)
         return;
     e = getenv("RECOMP_TOUCH_PAD");
-#if defined(__ANDROID__)
-    s_mode = e && *e == '0' ? 0 : e && *e == '1' ? 1 : -1;
+#if defined(__ANDROID__) || (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+    s_mode = e && *e == '0' ? 0 : e && *e == '1' ? 1 : -1;   /* a touch screen: auto */
 #else
     s_mode = e && *e == '1' ? 1 : 0;
     if (s_mode == 1)
         SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");  /* the mouse as a finger */
 #endif
+#if defined(__ANDROID__)
+    s_swap_ab = 1;
+#endif
+    if ((e = getenv("RECOMP_TOUCH_PAD_SWAP_AB")) != NULL)
+        s_swap_ab = *e == '1';
+    if ((e = getenv("RECOMP_TOUCH_PAD_STICK_PEDALS")) != NULL)
+        s_stick_pedals = *e != '0';
     if ((e = getenv("RECOMP_TOUCH_PAD_ALPHA")) != NULL) {
         float a = (float)atof(e);
         s_alpha = a < 0.1f ? 0.1f : a > 1.0f ? 1.0f : a;
@@ -107,10 +134,24 @@ static void set_ctl(int i, float cx, float cy, float w, float h, int round, cons
     c->pill_len = c->pill_th = 0;
 }
 
-/* Sizes from the screen's height (u), so a phone and a tablet look alike. */
+/* Sizes from the area's height (u), so a phone and a tablet look alike;
+ * a split screen's lower area (screen_split.c) is near square, so there
+ * from its width too, and the controls centred in it. */
 static void layout(int sw, int sh)
 {
-    float u = (float)sh * s_scale, W = (float)sw, H = (float)sh;
+    int game[4], area[4] = { 0, 0, sw, sh };
+    float u, W, H, X0;
+    s_split = xbox_screen_split(sw, sh, game, area);
+    s_gen = xbox_screen_layout_gen();
+    u = (float)area[3];
+    if (u > (float)area[2] / 1.3f)
+        u = (float)area[2] / 1.3f;
+    u *= s_scale;
+    X0 = (float)area[0];
+    W = (float)(area[0] + area[2]);
+    H = (float)(area[1] + area[3]);
+    if (s_split && (float)area[3] > 0.8f * u)
+        H -= ((float)area[3] - 0.8f * u) / 2;
     float m = 0.05f * u;                                /* margin */
     float br = 0.13f * u, d = 0.115f * u;               /* A B X Y */
     /* WHITE and BLACK: two pills tilted along Y-B, side by side just
@@ -135,7 +176,7 @@ static void layout(int sw, int sh)
      * ring's faint band reaches a little further and may go under it. */
     band = s_ring_out - s_ring_in;
     reach = (s_ring_in + s_ring_out) / 2 + 0.35f * band * 0.42f + band * 0.065f;
-    sx = m + reach;
+    sx = X0 + m + reach;
     sy = H - m - reach;
     s_sw = sw; s_sh = sh;
     set_ctl(C_STICK, sx, sy, 2 * s_stick_r, 2 * s_stick_r, 1, NULL);
@@ -155,6 +196,17 @@ static void layout(int sw, int sh)
         float mid = (sx + s_ring_out + ax - d - br / 2) / 2;
         set_ctl(C_BACK, mid - 0.02f * u - pw / 2, by, pw, ph, 0, "BACK");
         set_ctl(C_START, mid + 0.02f * u + pw / 2, by, pw, ph, 0, "START");
+    }
+    /* LT and RT above the stick's ring and above the buttons (WHITE's
+     * pill is the highest of those), one line for both */
+    {
+        float tw = 0.24f * u, th = 0.11f * u;
+        float top = sy - s_ring_out;
+        float rtop = ay + wy - pl / 2;
+        float ty = (top < rtop ? top : rtop) - m - th / 2;
+        set_ctl(C_LT, sx, ty, tw, th, 0, "LT");
+        set_ctl(C_RT, ax, ty, tw, th, 0, "RT");
+        set_ctl(C_LS, sx + tw / 2 + m * 0.6f + th * 0.75f, ty, th * 1.5f, th, 0, "LS");
     }
     s_dirty = 1;
 }
@@ -213,16 +265,18 @@ static void publish(void)
             if (s_fing[i].ctl == C_DPAD)
                 s_dirs |= s_fing[i].dir;
         }
-    /* A and B swapped: the button lettered A presses the Xbox's B and the
-     * one lettered B its A (the layout asked for, 2026-11-04) */
-    if (s_down[C_A]) an[XBOX_BUTTON_B] = 255;
-    if (s_down[C_B]) an[XBOX_BUTTON_A] = 255;
+    /* RECOMP_TOUCH_PAD_SWAP_AB: the button lettered A presses the Xbox's B
+     * and the one lettered B its A (the Android layout asked for,
+     * 2026-11-04) */
+    if (s_down[C_A]) an[s_swap_ab ? XBOX_BUTTON_B : XBOX_BUTTON_A] = 255;
+    if (s_down[C_B]) an[s_swap_ab ? XBOX_BUTTON_A : XBOX_BUTTON_B] = 255;
     if (s_down[C_X]) an[XBOX_BUTTON_X] = 255;
     if (s_down[C_Y]) an[XBOX_BUTTON_Y] = 255;
     if (s_down[C_WHITE]) an[XBOX_BUTTON_WHITE] = 255;
     if (s_down[C_BLACK]) an[XBOX_BUTTON_BLACK] = 255;
     if (s_down[C_START]) b |= XBOX_GAMEPAD_START;
     if (s_down[C_BACK]) b |= XBOX_GAMEPAD_BACK;
+    if (s_down[C_LS]) b |= XBOX_GAMEPAD_LEFT_THUMB;
     if (s_dirs & D_UP) b |= XBOX_GAMEPAD_DPAD_UP;
     if (s_dirs & D_DOWN) b |= XBOX_GAMEPAD_DPAD_DOWN;
     if (s_dirs & D_LEFT) b |= XBOX_GAMEPAD_DPAD_LEFT;
@@ -230,10 +284,12 @@ static void publish(void)
     if (!s_down[C_STICK])
         lx = ly = 0;
     /* up / down: gas / brake, as far as pushed (a little dead zone) */
-    if (ly < -0.15f)
+    if (s_stick_pedals && ly < -0.15f)
         an[XBOX_BUTTON_RTRIGGER] = (BYTE)(ly <= -0.85f ? 255 : (-ly - 0.15f) / 0.7f * 255.0f);
-    if (ly > 0.15f)
+    if (s_stick_pedals && ly > 0.15f)
         an[XBOX_BUTTON_LTRIGGER] = (BYTE)(ly >= 0.85f ? 255 : (ly - 0.15f) / 0.7f * 255.0f);
+    if (s_down[C_LT]) an[XBOX_BUTTON_LTRIGGER] = 255;
+    if (s_down[C_RT]) an[XBOX_BUTTON_RTRIGGER] = 255;
     SDL_AtomicLock(&s_lock);
     s_pad.buttons = b;
     memcpy(s_pad.analog, an, sizeof an);
@@ -344,6 +400,21 @@ void xbox_touchpad_handle(const SDL_Event *e)
         s_fing[f] = s_fing[--s_nfing];
         publish();
     }
+}
+
+void xbox_touchpad_configure(int mode, int stick_pedals, int swap_ab, float alpha, float scale)
+{
+    settings();
+    s_mode = mode < -1 || mode > 1 ? -1 : mode;
+    s_stick_pedals = stick_pedals != 0;
+    s_swap_ab = swap_ab != 0;
+    s_alpha = alpha < 0.1f ? 0.1f : alpha > 1.0f ? 1.0f : alpha;
+    s_scale = scale < 0.6f ? 0.6f : scale > 1.6f ? 1.6f : scale;
+    s_relayout = 1;
+    if (s_mode == 1)
+        s_touched = 1;
+    update_shown();
+    s_dirty = 1;
 }
 
 void xbox_touchpad_controller(int connected)
@@ -617,6 +688,15 @@ int xbox_touchpad_image(int sw, int sh, const uint32_t **rgba, int *w, int *h)
 {
     if (!xbox_touchpad_shown() || sw <= 0 || sh <= 0)
         return -1;
+    {
+        /* the split (rotation, the menu) or the size changed: lay out again */
+        int game[4], pad[4];
+        if (s_relayout || xbox_screen_split(sw, sh, game, pad) != s_split
+                || xbox_screen_layout_gen() != s_gen) {
+            s_relayout = 0;
+            s_sw = 0;
+        }
+    }
     if (sw != s_sw || sh != s_sh) {
         int iw, ih;
         layout(sw, sh);

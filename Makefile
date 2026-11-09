@@ -43,7 +43,7 @@ export VULKAN DEBUG GEN_DEBUGINFO JOBS SECS HEADLESS GDB NO_GAME WINDOW VIDEO KE
 
 .PHONY: help setup nsp check-vm extract lift regen relift \
         xbe-edition build build-vk build-debug windows mac-app run run-gdb run-headless snapshot report hoststacks profile record difftest trap \
-        switch switch-vk send android android-release \
+        switch switch-vk send android android-release ios ios-sim ios-run \
         hd-dump hd-tools hd-upscale import-save save-sync-up save-sync-down \
         seeds lift-report log du clean-build clean-gen clean toolkit-test
 
@@ -185,6 +185,18 @@ nsp:  ## NSP forwarders (home-menu apps; locally only), one per edition, from co
 android:  ## The APK for testing: work-<game>/android/<app>-<version>-debug.apk (SDK/NDK in work-dub/tools; ADR 0010)
 	@mkdir -p $(LOGS)
 	set -o pipefail; bash tools/android_build.sh debug 2>&1 | tee $(LOGS)/android_$(NOW).log
+
+ios-sim:  ## The iOS app for the simulator: work-<game>/ios/iphonesimulator/<app>.app (GAME=remix for the Remix; ADR 0011)
+	@mkdir -p $(LOGS)
+	set -o pipefail; bash tools/ios_build.sh sim app 2>&1 | tee $(LOGS)/ios_$(NOW).log
+
+ios-run:  ## ios-sim, then install and start it on the booted simulator (SIM="iPhone Duo" boots one)
+	@mkdir -p $(LOGS)
+	set -o pipefail; bash tools/ios_build.sh sim run 2>&1 | tee $(LOGS)/ios_$(NOW).log
+
+ios:  ## The iOS app for a device, signed with ios/Config/Local.xcconfig: work-<game>/ios/iphoneos/<app>.app
+	@mkdir -p $(LOGS)
+	set -o pipefail; bash tools/ios_build.sh device app 2>&1 | tee $(LOGS)/ios_$(NOW).log
 
 android-release:  ## The APK to hand out: work-<game>/android/<app>-<version>.apk (mcdub3-1.0.0.apk), signed with keys/android-release.jks (made the first time; keep a copy)
 	@mkdir -p $(LOGS)

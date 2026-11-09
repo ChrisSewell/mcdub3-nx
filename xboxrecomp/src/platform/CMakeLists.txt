@@ -42,7 +42,10 @@ else()
     target_link_libraries(platform PUBLIC Threads::Threads)
     target_compile_options(platform PRIVATE -Wall -Wextra -Wno-unused-parameter -O2)
     # macOS: host_main.c keeps the main thread for the window system (SDL).
-    if(APPLE)
+    if(IOS)
+        # SDL2 built from source with the app (mcdub3-nx ios/): its target.
+        target_link_libraries(platform PUBLIC SDL2::SDL2)
+    elseif(APPLE)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(PLATFORM_SDL2 REQUIRED IMPORTED_TARGET sdl2)
         target_link_libraries(platform PUBLIC PkgConfig::PLATFORM_SDL2)

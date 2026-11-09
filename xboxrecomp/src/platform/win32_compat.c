@@ -42,10 +42,15 @@
 #include <sys/mman.h>
 #endif
 #if defined(__APPLE__)
+#include <TargetConditionals.h>
 #include <sys/sysctl.h>
 #include <sys/stat.h>
 #include <mach/mach.h>
+#if !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
 #include <mach/mach_vm.h>
+#else
+#include <mach/vm_map.h>
+#endif
 #elif !defined(__SWITCH__)
 #include <sys/sysinfo.h>
 #endif
@@ -1791,6 +1796,20 @@ static void *mach_map_fixed(void *address, size_t size, int prot)
     if (prot & PROT_WRITE) vmprot |= VM_PROT_WRITE;
     if (prot & PROT_EXEC)  vmprot |= VM_PROT_EXECUTE;
 
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    /* iOS has no mach_vm_map for apps; vm_allocate with VM_FLAGS_FIXED is the
+     * same refuse-rather-than-displace primitive (then the protection). */
+    vm_address_t vaddr = (vm_address_t)addr;
+    kern_return_t kr = vm_allocate(mach_task_self(), &vaddr, (vm_size_t)len, VM_FLAGS_FIXED);
+    if (kr != KERN_SUCCESS)
+        return MAP_FAILED;
+    if (vmprot != (VM_PROT_READ | VM_PROT_WRITE)
+        && vm_protect(mach_task_self(), vaddr, (vm_size_t)len, FALSE, vmprot) != KERN_SUCCESS) {
+        vm_deallocate(mach_task_self(), vaddr, (vm_size_t)len);
+        return MAP_FAILED;
+    }
+    addr = vaddr;
+#else
     kern_return_t kr = mach_vm_map(
         mach_task_self(),
         &addr,
@@ -1807,6 +1826,7 @@ static void *mach_map_fixed(void *address, size_t size, int prot)
     if (kr != KERN_SUCCESS) {
         return MAP_FAILED;
     }
+#endif
     return (void *)(uintptr_t)addr;
 }
 #endif
@@ -2419,7 +2439,21 @@ static int anon_map_fd(const char *name)
     const char *base = name ? name : "xbox_map";
     snprintf(shm_name, sizeof(shm_name), "/%s_%ld", base, seq);
     int fd = shm_open(shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
-    if (fd >= 0) shm_unlink(shm_name);
+    if (fd >= 0) {
+        shm_unlink(shm_name);
+        return fd;
+    }
+    /* iOS's app sandbox refuses POSIX shared memory (the simulator, on the
+     * Mac's kernel, allows it): a file in the app's own temporary folder,
+     * unlinked at once, maps MAP_SHARED there just the same. */
+    {
+        const char *tmp = getenv("TMPDIR");
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s_XXXXXX",
+                 tmp && *tmp ? tmp : "/tmp", base);
+        fd = mkstemp(path);
+        if (fd >= 0) unlink(path);
+    }
     return fd;
 #else
     return memfd_create(name ? name : "xbox_map", 0);

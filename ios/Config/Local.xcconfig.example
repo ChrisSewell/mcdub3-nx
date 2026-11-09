@@ -1,0 +1,3 @@
+// Copy to ios/Config/Local.xcconfig (ignored by git) and fill in your own values.
+DEVELOPMENT_TEAM = ABCDE12345
+MC3_BUNDLE_PREFIX = com.example

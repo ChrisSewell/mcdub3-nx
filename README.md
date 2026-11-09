@@ -1,10 +1,13 @@
 <p align="center"><img src="logo.png" alt="Midnight Club 3: DUB Edition (Remix)" width="500"></p>
 
-<p align="center"><img src="https://img.shields.io/badge/version-0.3.0-blue.svg"> <img src="https://img.shields.io/badge/Nintendo%20Switch-21.0.0-orange?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0iI2ZmZiI%2BPHBhdGggZD0iTTkuNSAxLjVINi4yQTQuNyA0LjcgMCAwIDAgMS41IDYuMnYxMS42YTQuNyA0LjcgMCAwIDAgNC43IDQuN2gzLjN6TTggM3YxOEg2LjJBMy4yIDMuMiAwIDAgMSAzIDE3LjhWNi4yQTMuMiAzLjIgMCAwIDEgNi4yIDN6Ii8%2BPGNpcmNsZSBjeD0iNS44IiBjeT0iNy40IiByPSIxLjkiLz48cGF0aCBkPSJNMTQuNSAxLjVoMy4zYTQuNyA0LjcgMCAwIDEgNC43IDQuN3YxMS42YTQuNyA0LjcgMCAwIDEtNC43IDQuN2gtMy4zeiIvPjwvZz48Y2lyY2xlIGN4PSIxOC4yIiBjeT0iMTQuNiIgcj0iMS45IiBmaWxsPSIjNTU1Ii8%2BPC9zdmc%2BCg%3D%3D"> <img src="https://img.shields.io/badge/Mac-%20Sequoia%2015.6-green?logo=apple"> <img src="https://img.shields.io/badge/Linux-Ubuntu 22.04-purple?logo=linux"> <img src="https://img.shields.io/badge/Android-15-yellow?logo=android"> <img src="https://img.shields.io/badge/Windows-11-blue?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTIgMmg5LjV2OS41SDJ6TTEyLjUgMkgyMnY5LjVoLTkuNXpNMiAxMi41aDkuNVYyMkgyek0xMi41IDEyLjVIMjJWMjJoLTkuNXoiLz48L3N2Zz4K"> <img src="https://img.shields.io/badge/OpenGL-renderer-blue?logo=opengl"></p>
+<p align="center"><img src="https://img.shields.io/badge/version-0.3.0-blue.svg"> <img src="https://img.shields.io/badge/Nintendo%20Switch-21.0.0-orange?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPGcgZmlsbD0iI2ZmZiI%2BPHBhdGggZD0iTTkuNSAxLjVINi4yQTQuNyA0LjcgMCAwIDAgMS41IDYuMnYxMS42YTQuNyA0LjcgMCAwIDAgNC43IDQuN2gzLjN6TTggM3YxOEg2LjJBMy4yIDMuMiAwIDAgMSAzIDE3LjhWNi4yQTMuMiAzLjIgMCAwIDEgNi4yIDN6Ii8%2BPGNpcmNsZSBjeD0iNS44IiBjeT0iNy40IiByPSIxLjkiLz48cGF0aCBkPSJNMTQuNSAxLjVoMy4zYTQuNyA0LjcgMCAwIDEgNC43IDQuN3YxMS42YTQuNyA0LjcgMCAwIDEtNC43IDQuN2gtMy4zeiIvPjwvZz48Y2lyY2xlIGN4PSIxOC4yIiBjeT0iMTQuNiIgcj0iMS45IiBmaWxsPSIjNTU1Ii8%2BPC9zdmc%2BCg%3D%3D"> <img src="https://img.shields.io/badge/Mac-%20Sequoia%2015.6-green?logo=apple"> <img src="https://img.shields.io/badge/Linux-Ubuntu 22.04-purple?logo=linux"> <img src="https://img.shields.io/badge/Android-15-yellow?logo=android"> <img src="https://img.shields.io/badge/Windows-11-blue?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTIgMmg5LjV2OS41SDJ6TTEyLjUgMkgyMnY5LjVoLTkuNXpNMiAxMi41aDkuNVYyMkgyek0xMi41IDEyLjVIMjJWMjJoLTkuNXoiLz48L3N2Zz4K"> <img src="https://img.shields.io/badge/iOS-27-lightgrey?logo=apple"> <img src="https://img.shields.io/badge/OpenGL-renderer-blue?logo=opengl"></p>
 
 The original Xbox release of *Midnight Club 3: DUB Edition* and *Midnight Club 3: DUB Edition Remix*, recompiled and lifted instruction by instruction to C with [xboxrecomp](https://github.com/sp00nznet/xboxrecomp) and compiled natively for the Nintendo Switch, Linux, macOS and Windows without the requirement of emulation.
 
 Organised after the release of [nfsu2-sw](https://github.com/antoxa2584x/nfsu2-sw), whose Switch layer has been a great inspiration for this toolkit.
+
+> [!NOTE]
+> **This is an iOS fork** of [laureladastra/mcdub3-nx](https://github.com/laureladastra/mcdub3-nx) by Laure Ladastra, who did the recompilation and every port above; all credit for the game running at all is theirs (and [xboxrecomp](https://github.com/sp00nznet/xboxrecomp)'s). The fork adds an iPhone app: see [iPhone and iPad](#iphone-and-ipad). The upstream MIT license and copyright notice are kept unchanged in [LICENSE](LICENSE). For personal use with your own disc.
 
 > [!WARNING]
 > **No game data is included.** You need your own copy of the Xbox disc.
@@ -90,6 +93,34 @@ If the game doesn't start, the log is `mcdub3_log.txt` (Remix: `mcdub3remix_log.
 > [!WARNING]
 > **The most common mistakes are: copying the disc image (`.iso`) instead of its extracted files, or the wrong game's disc (the DUB Edition application with the Remix disc, or the other way round).** The app needs the folder of extracted files, with `default.xbe` in it. To unpack an `.iso`, use [xdvdfs](https://github.com/antangelo/xdvdfs): `xdvdfs unpack <your disc>.iso <folder>`. The wrong game's disc is refused with a message when you press **Play**.
 >
+
+### iPhone and iPad
+
+The iOS app (ADR 0011) is built from source on a Mac and installed on your own iPhone (an iPad runs it in iPhone mode); no app file is published, since it would contain the recompiled game. It plays the Remix (`GAME=remix`; the DUB Edition builds the same way) with:
+
+- an on-screen Xbox pad (stick and d-pad, A B X Y, LT RT LS, WHITE BLACK, BACK START) with the Xbox's own layout;
+- a split screen when the phone is upright: the game above, the controls below, made for a foldable held half folded;
+- a menu (the button in the top right corner): control style, pad size and opacity, screen layout, saves;
+- the game's saves in iCloud, so they follow you to another iPhone or iPad;
+- a welcome screen that explains how to add the disc.
+
+<p align="center"><img src="docs/images/ios-welcome.png" alt="The welcome screen" width="200"> <img src="docs/images/ios-menu.png" alt="The menu" width="200"></p>
+<p align="center"><img src="docs/images/ios-pad.png" alt="The on-screen pad on a foldable's inner screen" width="450"></p>
+
+**Build** (macOS with Xcode 27, CMake, Ninja and XcodeGen: `brew install cmake ninja xcodegen`):
+
+1. Put SDL2's source in `work-dub/tools/SDL2-2.32.10` (libsdl.org, `SDL2-2.32.10.tar.gz`), and lift the game from your disc as for the other platforms (CONTRIBUTING.md).
+2. Create `ios/Config/Local.xcconfig` (ignored by git) with your Apple developer team and a bundle ID prefix of your own:
+   ```
+   DEVELOPMENT_TEAM = <your team ID>
+   MC3_BUNDLE_PREFIX = <com.yourname>
+   // optional, after registering the container iCloud.<prefix>.mcdub3remix
+   // for the app in the developer portal: iCloud saves
+   MC3_ICLOUD = 1
+   ```
+3. `make ios GAME=remix` builds and signs `work-remix/ios/iphoneos/Midnight Club 3 Remix.app` (`make ios-sim GAME=remix` for the simulator). Install it from Xcode, or with `xcrun devicectl device install app --device <your device> "<the .app>"`.
+
+**The disc:** extract it (the folder with `default.xbe`, not the `.iso`) and name the folder `game-usa` or `game-eur`. Copy it into the app: on a Mac, Finder › your iPhone › Files › Midnight Club 3 Remix; on the device, Files › On My iPhone › Midnight Club 3 Remix. The welcome screen finds it by itself. The log is `mcdub3remix_log.txt` in the same folder.
 
 ### Mac
 
@@ -263,6 +294,19 @@ default, is [switch/mcdub3_env.example.txt](switch/mcdub3_env.example.txt). The 
 | `RECOMP_NX_JOYCON`  | *(unset)* | Switch: `single` turns two detached Joy-Cons into one player each, held sideways.                                                            |
 | `RECOMP_RUMBLE`     | `1`       | Rumble.                                                                                                                                      |
 | `RECOMP_KEYBOARD`   | `1`       | Linux and macOS: the keyboard plays as player 1, alongside any connected controller.                                                         |
+
+### iPhone
+
+The iOS app's own menu sets these too, and keeps them; a line in `mcdub3remix_env.txt` (in the app's folder in Files) overrides the menu.
+
+| Setting                         | Default          | What it does                                                                                                         |
+| ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `RECOMP_SCREEN_SPLIT`           | *(auto)*         | `auto` splits a screen held upright: the game in the top half, the controls in the bottom half. `1` always, `0` never. |
+| `RECOMP_TOUCH_PAD`              | *(auto)*         | The on-screen pad: shown on a touch screen by default. `0` never, `1` always.                                          |
+| `RECOMP_TOUCH_PAD_STICK_PEDALS` | `1`              | The stick's up and down are also gas and brake. `0`: gas and brake on RT and LT only.                                  |
+| `RECOMP_TOUCH_PAD_SWAP_AB`      | `0` (Android `1`) | `1`: the button lettered A presses the Xbox's B and the other way round.                                               |
+| `RECOMP_TOUCH_PAD_ALPHA`        | `0.55`           | The pad's opacity, 0.1 to 1.                                                                                           |
+| `RECOMP_TOUCH_PAD_SCALE`        | `1`              | The pad's size, 0.6 to 1.6.                                                                                            |
 
 ### Performance and logging
 

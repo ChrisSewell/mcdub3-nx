@@ -414,6 +414,26 @@ in nfsu2-sw's README (Configuration section); the toolkit is the same.
   3.1) is slow for guest-lock hand-overs and movies: judge speed on a
   device.
 
+- iOS (2026-11-09, ADR 0011 and its update): `make ios-sim GAME=remix` /
+  `make ios GAME=remix` -> work-<game>/ios/<sdk>/<app>.app; signing in
+  ios/Config/Local.xcconfig (team, bundle prefix, MC3_ICLOUD = 1 for iCloud
+  saves), gitignored. OpenGL ES 3.0 on Metal; personal installs only (the
+  app holds the lifted code). Found on the way: the UIScene lifecycle
+  (iOS 27 SDK) and SDL2's windows (SceneShim.m), framebuffer 0 shows
+  nothing (SDL's FBO, its renderbuffer bound before every swap), no
+  second GL context (UIKit puts its view in front), no shm_open in the
+  sandbox (guest memory on a TMPDIR file), SDL resizing its drawable and
+  GL view from the main thread / a stale orientation (GLSwapFix.m keeps
+  both on the window's size, on the renderer's thread), SDL's on-screen
+  keyboard after a fold (off). App shell: welcome and loading screens,
+  menu, iCloud saves, split screen for a foldable held upright
+  (input/screen_split.c), touch pad with LT/RT/LS. Test on the simulator
+  with SDL_AUDIODRIVER=dummy and check `[AUDIO] SDL dummy` in the log
+  before anything (MC3_APU=0 is no mute: the Remix hangs); MC3_AUTOPLAY=1,
+  MC3_MENU_OPEN=1, MC3_ORIENTATION=portrait for unattended shots; a
+  foldable simulator folds with `duoctl` and shoots with
+  `simctl io ... screenshot --display=primary`.
+
 ### First lift (2026-10-14)
 
 21,585 functions, 0 failed, 2.98 M lines of C in 87 chunks (`--split 250`).

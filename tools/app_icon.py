@@ -3,6 +3,7 @@
 
     tools/app_icon.py switch <artwork> <out.jpg>
     tools/app_icon.py android <artwork> <out.png>
+    tools/app_icon.py ios <artwork> <out.png>
 
 switch: 256x256, a bare baseline JPEG (4:2:0, no EXIF, no progressive, no
 ICC profile): what hbmenu and the home menu show. Anything more and the
@@ -17,6 +18,9 @@ disc. So the artwork is 60 dp with rounded corners, the whole logo inside
 even a circle, over itself enlarged, blurred and darkened for whatever a
 shape shows around it. Full-bleed (or 76 dp) the cover's logo lost its
 ends in a circle.
+
+ios: 1024x1024, opaque (App Store icons may not have alpha), square
+corners: iOS rounds them itself and makes every other size from this one.
 
 (The Mac's rounded .icns is tools/mac_icon.py, Windows' .ico
 tools/windows/win_icon.py.)
@@ -58,10 +62,19 @@ def android(src, dst):
     print("  icon: %s -> %s (Android adaptive foreground)" % (os.path.relpath(src), os.path.relpath(dst)))
 
 
+def ios(src, dst):
+    im = square(Image.open(src).convert("RGB"))
+    if im.size != (1024, 1024):
+        im = im.resize((1024, 1024), Image.LANCZOS)
+    Image.frombytes("RGB", im.size, im.tobytes()).save(dst, format="PNG", optimize=True)
+    print("  icon: %s -> %s (iOS, 1024x1024)" % (os.path.relpath(src), os.path.relpath(dst)))
+
+
 def main():
-    if len(sys.argv) != 4 or sys.argv[1] not in ("switch", "android"):
+    kinds = {"switch": switch, "android": android, "ios": ios}
+    if len(sys.argv) != 4 or sys.argv[1] not in kinds:
         sys.exit(__doc__)
-    (switch if sys.argv[1] == "switch" else android)(sys.argv[2], sys.argv[3])
+    kinds[sys.argv[1]](sys.argv[2], sys.argv[3])
 
 
 if __name__ == "__main__":

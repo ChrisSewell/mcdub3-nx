@@ -889,6 +889,9 @@ static int game_main_args(int argc, char **argv)
     return game_main();
 }
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 #if defined(__ANDROID__)
 /* SDL starts the program as SDL_main on a thread of its own (SDL_main.h
  * renames main); the title then runs on xbox_host_main_run's 64 MB stack
@@ -897,12 +900,23 @@ static int game_main_args(int argc, char **argv)
 #include <SDL_main.h>
 void android_boot(void);
 #endif
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+/* iOS likewise (ADR 0011): SDL2main's UIApplicationMain calls SDL_main on
+ * the main thread, which host_main.c then keeps for UIKit while the title
+ * runs on its own 64 MB stack. Documents folder, log, settings and the
+ * disc first: ios_host.c. */
+#include <SDL_main.h>
+void ios_boot(void);
+#endif
 
 int main(int argc, char **argv)
 {
     extern int xbox_host_main_run(int (*fn)(int, char **), int argc, char **argv);
 #if defined(__ANDROID__)
     android_boot();
+#endif
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    ios_boot();
 #endif
 #ifdef _WIN32
     /* Settings files, the disc and the log when started on its own

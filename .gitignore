@@ -23,6 +23,13 @@
 /android/app/build/
 /android/app/.cxx/
 /android/local.properties
+# The iOS build (ios/, ADR 0011): XcodeGen's project, your signing settings.
+/ios/*.xcodeproj
+# XcodeGen writes these from project.yml (info:, entitlements:).
+/ios/App/Info.plist
+/ios/App/MidnightClub3.entitlements
+/ios/Config/Local.xcconfig
+/ios/build/
 
 # Toolkit pipeline outputs, written inside the vendored tree.
 /xboxrecomp/tools/*/output/

@@ -44,11 +44,16 @@ else()
 endif()
 set(MC3_GEN_DIR "${_mc3_work}/gen" CACHE PATH
     "tools.recomp output (recomp_*.c, recomp_funcs.h, recomp_types.h)")
-if(NOT EXISTS "${MC3_GEN_DIR}/recomp_funcs.h")
+# The runtime alone (the toolkit's libraries, SDL2 on iOS), without a lift:
+# to bring a new host's toolchain up before the disc is there (ADR 0011).
+option(MC3_RUNTIME_ONLY "Build the xboxrecomp runtime only, no lifted code and no game" OFF)
+if(MC3_RUNTIME_ONLY)
+    # nothing of the lift is needed
+elseif(NOT EXISTS "${MC3_GEN_DIR}/recomp_funcs.h")
     message(FATAL_ERROR "No generated code in ${MC3_GEN_DIR}. Run tools/first_lift.sh "
                         "(or tools/regen.sh), or pass -DMC3_GEN_DIR=<dir>.")
 endif()
-if(NOT EXISTS "${MC3_CONFIG_DIR}/xbe_facts.h")
+if(NOT MC3_RUNTIME_ONLY AND NOT EXISTS "${MC3_CONFIG_DIR}/xbe_facts.h")
     message(FATAL_ERROR "config/${MC3_GAME}/xbe_facts.h is missing: run make lift GAME=${MC3_GAME}.")
 endif()
 
@@ -81,6 +86,10 @@ if(WIN32)
 endif()
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
+if(MC3_RUNTIME_ONLY)
+    message(STATUS "MC3_RUNTIME_ONLY: the toolkit's libraries only, no game target")
+    return()
+endif()
 
 file(GLOB MC3_GEN_SOURCES CONFIGURE_DEPENDS "${MC3_GEN_DIR}/*.c")
 
@@ -100,12 +109,20 @@ endif()
 if(ANDROID)
     list(APPEND MC3_SOURCES src/android_host.c)   # folder, settings, log (ADR 0010)
 endif()
+if(IOS)
+    list(APPEND MC3_SOURCES src/ios_host.c)       # Documents folder, settings, log (ADR 0011)
+endif()
 
 if(ANDROID)
     # SDL's Java activity loads the game as libmain.so and calls SDL_main.
     add_library(${PROJECT_NAME} SHARED ${MC3_SOURCES} ${MC3_GEN_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME main)
     target_link_libraries(${PROJECT_NAME} PRIVATE log android)
+elseif(IOS)
+    # A static library the Xcode app in ios/ links (with SDL2 and SDL2main,
+    # whose main calls our SDL_main); ios/CMakeLists.txt drives this build.
+    add_library(${PROJECT_NAME} STATIC ${MC3_SOURCES} ${MC3_GEN_SOURCES})
+    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${MC3_APP}")
 else()
     add_executable(${PROJECT_NAME} ${MC3_SOURCES} ${MC3_GEN_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${MC3_APP}")
@@ -184,7 +201,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # and memory per chunk sane on the PC; the Switch's CPU is the bottleneck, so
 # it gets -O2, and so does Android (the same Tegra under switchroot; phones
 # no faster). -fwrapv / no strict aliasing: x86 semantics, not C's.
-if(NINTENDO_SWITCH OR ANDROID)
+if(NINTENDO_SWITCH OR ANDROID OR IOS)
     set(MC3_GEN_OPT "-O2" CACHE STRING "Optimisation for the lifted code")
 else()
     set(MC3_GEN_OPT "-O1" CACHE STRING "Optimisation for the lifted code")
@@ -203,7 +220,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE m)
 # Movies: FFmpeg decodes Bink video in place of the lifted decoder
 # (src/bink_native.c). Linux only for now; the Switch needs its own LGPL,
 # Bink-only FFmpeg build. Without FFmpeg the lifted decoder plays the movies.
-option(MC3_NATIVE_BINK "Decode Bink movies (video and sound) with FFmpeg" ON)
+# iOS: off until there is an FFmpeg built for it (ADR 0011); pkg-config
+# would otherwise hand the Mac's Homebrew FFmpeg to an iOS link.
+if(IOS)
+    set(_mc3_bink_default OFF)
+else()
+    set(_mc3_bink_default ON)
+endif()
+option(MC3_NATIVE_BINK "Decode Bink movies (video and sound) with FFmpeg" ${_mc3_bink_default})
 if(MC3_NATIVE_BINK)
     # Linux: the system's shared FFmpeg. Switch: devkitPro's static
     # switch-ffmpeg from the portlibs (in the pinned container image; GPL

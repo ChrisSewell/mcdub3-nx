@@ -1,0 +1,100 @@
+# The iOS app (ADR 0011): a UIKit shell from SDL2 around the game, which
+# tools/ios_build.sh builds first with CMake (ios/CMakeLists.txt) into
+# work-<game>/ios/<sdk>/lib: lib<MC3_APP>.a (libmcdub3 or libmcdub3remix), libSDL2.a, libSDL2main.a.
+# `xcodegen` here makes MidnightClub3.xcodeproj (ignored by git).
+#
+# Signing: ios/Config/Signing.xcconfig, with your team and bundle prefix in
+# ios/Config/Local.xcconfig (ignored by git). The simulator needs neither.
+name: MidnightClub3
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    CLANG_ENABLE_OBJC_ARC: YES
+    GCC_C_LANGUAGE_STANDARD: gnu11
+    # The game is C from CMake; Xcode only links. Which build folder depends
+    # on the SDK (Config/Signing.xcconfig sets MC3_LIB_DIR per SDK).
+    LIBRARY_SEARCH_PATHS: $(inherited) $(MC3_LIB_DIR)
+    # MC3_APP: mcdub3 or mcdub3remix (Config/Signing.xcconfig; tools/ios_build.sh
+    # passes the game's).
+    OTHER_LDFLAGS: $(inherited) -ObjC -l$(MC3_APP) -lSDL2 -lSDL2main -lc++
+    # The libraries are arm64 only (tools/ios_build.sh): no Intel simulator.
+    ARCHS: arm64
+targets:
+  MidnightClub3:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      # The game's own icon, AppIconGame: an asset catalog tools/ios_build.sh
+      # makes from its artwork (config/<game>/app.env APP_ICON) in
+      # work-<game>/ios/ and then picks; without artwork, App's AppIcon.
+      - path: ${MC3_ICON_CATALOG}
+        optional: true
+    settings:
+      base:
+        PRODUCT_NAME: $(MC3_PRODUCT_NAME)
+        PRODUCT_BUNDLE_IDENTIFIER: $(MC3_BUNDLE_PREFIX).$(MC3_APP)
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: App/MidnightClub3.entitlements
+      properties:
+        # The runtime reserves a 4 GB window of address space for the Xbox's
+        # memory (xbox_memory_layout.c). iOS allows that only with these.
+        com.apple.developer.kernel.extended-virtual-addressing: true
+        com.apple.developer.kernel.increased-memory-limit: true
+        # iCloud saves (App/CloudSaves.m) need a container registered for the
+        # app: App/MidnightClub3-iCloud.entitlements, which tools/ios_build.sh
+        # uses with MC3_ICLOUD = 1 in Config/Local.xcconfig.
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: $(MC3_PRODUCT_NAME)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        # The disc goes in Documents through the Files app or Finder.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+        # iOS 27 requires the scene lifecycle; App/SceneShim.m fits SDL2 to it.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: MC3SceneDelegate
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          # Portrait: the game above, the controls below (a clamshell
+          # foldable held half folded)
+          - UIInterfaceOrientationPortrait
+        GCSupportsControllerUserInteraction: true
+        NSBluetoothAlwaysUsageDescription: Used for game input.
+        ITSAppUsesNonExemptEncryption: false
+    dependencies:
+      - sdk: UIKit.framework
+      - sdk: Foundation.framework
+      - sdk: CoreGraphics.framework
+      - sdk: QuartzCore.framework
+      - sdk: OpenGLES.framework
+      - sdk: Metal.framework
+      - sdk: GameController.framework
+      - sdk: CoreHaptics.framework
+      - sdk: CoreMotion.framework
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: CoreVideo.framework
+      - sdk: CoreBluetooth.framework

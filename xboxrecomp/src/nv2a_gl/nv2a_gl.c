@@ -46,13 +46,22 @@
 #include <string.h>
 #include "gl_merge.h"       /* state-changing GL calls flush a held draw first */
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#  define NV2A_GL_IOS 1          /* iOS: OpenGL ES 3.0 only (ADR 0011 of mcdub3-nx) */
+#else
+#  define NV2A_GL_IOS 0
+#endif
+
 /* ── OpenGL ES (nv2a_gl_es, Android; ADR 0010) ──────────────────────────
  *
  * ES has no BGRA pixel transfers: the Xbox's A8R8G8B8 data (B, G, R, A in
  * memory) goes up as RGBA with red and blue swapped on the way, and comes
  * back the same way. Uploads are mostly once per texture; the swap is a pass
  * over what is uploaded. GL_UNPACK_ROW_LENGTH is honoured (tracked here). */
-static int s_es_minor = 2;          /* the ES 3.x context made: 2, or 1 */
+static int s_es_minor = 2;          /* the ES 3.x context made: 2, 1 or 0 */
 static GLint s_es_unpack_row;
 static uint8_t *s_es_scratch;
 static size_t s_es_scratch_cap;
@@ -156,11 +165,15 @@ static inline void es_read_pixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum
 #include "../kernel/nv2a_backend.h"
 
 #include <SDL.h>
+#if NV2A_GL_IOS
+#include <SDL_syswm.h>      /* the UIKit view's framebuffer */
+#endif
 
 #if (!defined(_WIN32) || defined(XBOXRECOMP_SDL_HOST)) && !defined(__SWITCH__)
 void xbox_sdl_keyboard_handle(const SDL_Event *e);   /* input/sdl_keyboard.c */
 void xbox_touchpad_handle(const SDL_Event *e);       /* input/touch_pad.c */
 int  xbox_touchpad_image(int sw, int sh, const uint32_t **rgba, int *w, int *h);
+int  xbox_screen_split(int sw, int sh, int game[4], int pad[4]);  /* input/screen_split.c */
 int  xbox_sdl_keyboard_down(int scancode);
 #endif
 #include <pthread.h>
@@ -174,8 +187,12 @@ extern ptrdiff_t xbox_GetMemoryOffset(void);
 int nv2a_gl_adopt_window(void **win, void **ctx);
 int nv2a_gl_draw_placeholder(void);
 int nv2a_gl_screen_size(int *w, int *h);
+void nv2a_gl_first_frame(void);
 static SDL_Window   *s_win;
 static SDL_GLContext s_ctx;
+/* The window's framebuffer: 0, except on iOS, where SDL's view owns one
+ * (SDL_SysWMinfo uikit.framebuffer) and framebuffer 0 shows nothing. */
+static GLuint        s_screen_fb;
 static int           s_state;           /* 0 untried, 1 ready, -1 failed */
 static int           s_trace;
 static int           s_finish = -1;      /* RECOMP_GL_FINISH */
@@ -2657,8 +2674,11 @@ uint32_t nv2a_gl_program_count(void) { return s_prog_live; }
                        "precision highp sampler2D;\n"
 static const char *es_header(void)
 {
+    /* ES 3.0 (iOS's own driver, ANGLE on Metal): the shaders use nothing
+     * past GLSL ES 3.00; what 3.1 and 3.2 add is optional here. */
     return s_es_minor >= 2 ? "#version 320 es\n" ES_HEADER_REST
-                           : "#version 310 es\n" ES_HEADER_REST;
+         : s_es_minor == 1 ? "#version 310 es\n" ES_HEADER_REST
+                           : "#version 300 es\n" ES_HEADER_REST;
 }
 
 static GLuint compile(GLenum type, const char *const *src, int n)
@@ -3558,6 +3578,12 @@ static int ct_start(const char *path, unsigned skip)
     pthread_t th;
     snprintf(s_ct_path, sizeof s_ct_path, "%s", path);
     s_ct_skip = skip;
+#if NV2A_GL_IOS
+    /* UIKit gives every context a view of its own, and making one current
+     * on the window puts its view in front for good: a compile thread's
+     * context would hide the renderer's. Programs compile here instead. */
+    return 0;
+#endif
 #if defined(__SWITCH__)
     {
         EGLContext cur = eglGetCurrentContext();
@@ -3621,8 +3647,8 @@ static void gl_make_window(void *unused)
         /* OpenGL ES 3.2 on Android (ADR 0010), or where RECOMP_GL_GLES=1 asks
          * for it (a desktop driver with ES contexts, to test that path). */
         const char *e = getenv("RECOMP_GL_GLES");
-#if defined(__ANDROID__)
-        nv2a_gl_es = !(e && e[0] == '0');
+#if defined(__ANDROID__) || NV2A_GL_IOS
+        nv2a_gl_es = !(e && e[0] == '0');     /* iOS: ES is all there is */
 #else
         nv2a_gl_es = e && e[0] == '1';
 #endif
@@ -3636,7 +3662,7 @@ static void gl_make_window(void *unused)
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     }
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !NV2A_GL_IOS
     /* macOS hands out a 3.2+ core context only when asked for a
      * forward-compatible one (GL 2.1 otherwise); it runs GL 4.1 on Metal. */
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
@@ -3645,7 +3671,7 @@ static void gl_make_window(void *unused)
     s_win = SDL_CreateWindow("NV2A", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                              1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
                              | SDL_WINDOW_ALLOW_HIGHDPI
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || NV2A_GL_IOS
                              | SDL_WINDOW_FULLSCREEN    /* the screen, landscape */
 #endif
                              );
@@ -3659,6 +3685,13 @@ static void gl_make_window(void *unused)
         fprintf(stderr, "  [GL] no OpenGL ES 3.2 context (%s); trying 3.1\n", SDL_GetError());
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
         s_es_minor = 1;
+        s_ctx = SDL_GL_CreateContext(s_win);
+    }
+    if (!s_ctx && nv2a_gl_es) {
+        /* ES 3.0: iOS's own OpenGL ES, ANGLE on Metal (ADR 0011) */
+        fprintf(stderr, "  [GL] no OpenGL ES 3.1 context (%s); trying 3.0\n", SDL_GetError());
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+        s_es_minor = 0;
         s_ctx = SDL_GL_CreateContext(s_win);
     }
     if (!s_ctx) {
@@ -3698,12 +3731,32 @@ static int ready(void)
     SDL_GL_SetSwapInterval(0);
     if (nv2a_gl_load(SDL_GL_GetProcAddress) != 0)
         return 0;
+#if NV2A_GL_IOS
+    {
+        SDL_SysWMinfo wm;
+        SDL_VERSION(&wm.version);
+        if (SDL_GetWindowWMInfo(s_win, &wm) && wm.subsystem == SDL_SYSWM_UIKIT)
+            s_screen_fb = wm.info.uikit.framebuffer;
+        fprintf(stderr, "  [GL] window framebuffer %u (SDL's UIKit view)\n", s_screen_fb);
+    }
+#endif
     {
         extern void nv2a_gl_check_install(void);   /* gl_check.c: RECOMP_GL_ERRORS=2 */
         nv2a_gl_check_install();
     }
     fprintf(stderr, "  [GL] %s / %s / %s\n", (const char *)glGetString(GL_VENDOR),
             (const char *)glGetString(GL_RENDERER), (const char *)glGetString(GL_VERSION));
+    if (nv2a_gl_es) {
+        /* The version the driver gave, not the one asked for: iOS hands out
+         * ES 3.0 for any 3.x request, and the shaders' #version must match. */
+        const char *v = (const char *)glGetString(GL_VERSION);
+        if (v && !strncmp(v, "OpenGL ES 3.", 12) && v[12] >= '0' && v[12] <= '2'
+            && v[12] - '0' < s_es_minor) {
+            s_es_minor = v[12] - '0';
+            fprintf(stderr, "  [GL] the context is ES 3.%d: shaders as GLSL ES 3.%d0\n",
+                    s_es_minor, s_es_minor);
+        }
+    }
     {
         const char *e = getenv("RECOMP_GL_SCALE");
         GLint mt = 0, mr = 0;
@@ -3779,6 +3832,13 @@ __attribute__((weak)) int nv2a_gl_adopt_window(void **win, void **ctx)
 __attribute__((weak)) int nv2a_gl_draw_placeholder(void)
 {
     return 0;
+}
+
+/* Called once, on the renderer's thread, as the title's first frame is
+ * presented: a host showing its own loading screen over the window takes
+ * it away. */
+__attribute__((weak)) void nv2a_gl_first_frame(void)
+{
 }
 
 /* The on-screen size, if the host knows it better than SDL. */
@@ -6400,7 +6460,7 @@ static void touchpad_draw(void)
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, iw, ih, GL_RGBA, GL_UNSIGNED_BYTE, img);
         }
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_screen_fb);
     glViewport(0, 0, ww, wh);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_DEPTH_TEST);
@@ -6512,7 +6572,7 @@ static int present_fxaa(GlSurf *s, GLint sw, int dx, int dy, int dw, int dh)
         }
         held43 = 1;
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, s_screen_fb);
     glViewport(dx, dy, dw, dh);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
@@ -6570,7 +6630,7 @@ static int present_fxaa(GlSurf *s, GLint sw, int dx, int dy, int dw, int dh)
         int steady = fill && fill_steady_init();
         if (steady) {
             fill_steady_pass(s->tex, full, band, 2.0f * band[0]);   /* band[0]: half a band */
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glBindFramebuffer(GL_FRAMEBUFFER, s_screen_fb);
             glViewport(dx, dy, dw, dh);
             glUseProgram(s_fx_prog);
             s_cur_prog = s_fx_prog;
@@ -6769,7 +6829,7 @@ static void gl_flip(void)
          * placeholder (a loading screen), or
          * at least a clear -- a buffer never drawn to reaches the screen as
          * whatever the driver left in it. */
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_screen_fb);
         glDisable(GL_SCISSOR_TEST);
         glColorMask(1, 1, 1, 1);
         if (!nv2a_gl_draw_placeholder()) {
@@ -6847,7 +6907,7 @@ static void gl_flip(void)
     if (!nv2a_gl_screen_size(&ww, &wh) || ww <= 0 || wh <= 0)
         SDL_GL_GetDrawableSize(s_win, &ww, &wh);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, s->fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_screen_fb);
     glDisable(GL_SCISSOR_TEST);
     glColorMask(1, 1, 1, 1);
     glClearColor(0, 0, 0, 1);
@@ -6858,10 +6918,23 @@ static void gl_flip(void)
         /* nv2a_present.h: the drawn width, 16:9 for a widescreen title. */
         uint32_t vw = present_width(s);
         GLint sw = (GLint)((uint64_t)s->pw * vw / s->w);
-        int rc[4], dx, dy, dw, dh;
+        int rc[4], dx, dy, dw, dh, area[4] = { 0, 0, ww, wh };
+#if (!defined(_WIN32) || defined(XBOXRECOMP_SDL_HOST)) && !defined(__SWITCH__)
+        {
+            /* The game's area (input/screen_split.c): the safe area, or its
+             * top part on a split screen, the on-screen pad below. GL
+             * counts rows from the bottom. */
+            int game[4], pad[4];
+            xbox_screen_split(ww, wh, game, pad);
+            area[0] = game[0];
+            area[1] = wh - game[1] - game[3];
+            area[2] = game[2];
+            area[3] = game[3];
+        }
+#endif
         nv2a_present_rect((float)vw / (float)s->aa_sx, (float)s->h / (float)s->aa_sy,
-                          ww, wh, rc);
-        dx = rc[0]; dy = rc[1]; dw = rc[2]; dh = rc[3];
+                          area[2], area[3], rc);
+        dx = area[0] + rc[0]; dy = area[1] + rc[1]; dw = rc[2]; dh = rc[3];
         /* Scissored to the picture: Switch Mesa (nouveau) runs a scaled,
          * flipped blit over more than the destination rectangle, and the
          * pillarbox bars filled with the source's edge columns stretched
@@ -6872,6 +6945,13 @@ static void gl_flip(void)
             glBlitFramebuffer(0, 0, sw, (GLint)s->ph,
                               dx, dy + dh, dx + dw, dy, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         glDisable(GL_SCISSOR_TEST);
+        {
+            static int told;
+            if (!told) {
+                told = 1;
+                nv2a_gl_first_frame();      /* a host's loading screen can go */
+            }
+        }
     }
 swap:
 #if (!defined(_WIN32) || defined(XBOXRECOMP_SDL_HOST)) && !defined(__SWITCH__)
@@ -6880,7 +6960,7 @@ swap:
     if (gl_probe()) {
         /* A blue square straight into the window: does anything we draw
          * reach the screen? */
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, s_screen_fb);
         glColorMask(1, 1, 1, 1);
         glEnable(GL_SCISSOR_TEST);
         glScissor(16, 16, 96, 96);

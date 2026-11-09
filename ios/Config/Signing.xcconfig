@@ -1,0 +1,21 @@
+// Your signing settings. Copy ios/Config/Local.xcconfig.example to
+// ios/Config/Local.xcconfig (ignored by git) and set your own team and bundle
+// prefix there, so they never get committed.
+//
+// DEVELOPMENT_TEAM: your Apple Developer team ID (developer.apple.com > Membership).
+// MC3_BUNDLE_PREFIX: a reverse-DNS prefix you own. The bundle ID becomes <prefix>.mcdub3.
+//
+// The simulator build works with the placeholders below and no team.
+DEVELOPMENT_TEAM =
+MC3_BUNDLE_PREFIX = com.example
+
+// The game (tools/ios_build.sh overrides all three for GAME=remix):
+// the library and bundle ID suffix, the app's name, its work folder.
+MC3_APP = mcdub3
+MC3_PRODUCT_NAME = Midnight Club 3
+MC3_WORK = $(SRCROOT)/../work-dub
+// Where tools/ios_build.sh put the libraries (ios/CMakeLists.txt), per SDK.
+MC3_LIB_DIR[sdk=iphonesimulator*] = $(MC3_WORK)/ios/iphonesimulator/lib
+MC3_LIB_DIR[sdk=iphoneos*] = $(MC3_WORK)/ios/iphoneos/lib
+
+#include? "Local.xcconfig"

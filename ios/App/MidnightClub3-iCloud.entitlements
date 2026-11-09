@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- App/MidnightClub3.entitlements (project.yml) plus iCloud Drive for the
+     game's saves (App/CloudSaves.m). Used by tools/ios_build.sh when
+     Config/Local.xcconfig has MC3_ICLOUD = 1: the container
+     iCloud.<bundle id> must exist and be assigned to the app's identifier
+     in the developer portal first. -->
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.kernel.extended-virtual-addressing</key>
+	<true/>
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.$(MC3_BUNDLE_PREFIX).$(MC3_APP)</string>
+	</array>
+	<key>com.apple.developer.ubiquity-container-identifiers</key>
+	<array>
+		<string>iCloud.$(MC3_BUNDLE_PREFIX).$(MC3_APP)</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudDocuments</string>
+	</array>
+</dict>
+</plist>
